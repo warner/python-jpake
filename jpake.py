@@ -17,28 +17,6 @@ class GX4MustNotBeOne(JPAKEError):
     pass
 
 
-# inverse_mod from python-ecdsa
-
-def inverse_mod( a, m ):
-  """Inverse of a mod m."""
-
-  if a < 0 or m <= a: a = a % m
-
-  # From Ferguson and Schneier, roughly:
-
-  c, d = a, m
-  uc, vc, ud, vd = 1, 0, 0, 1
-  while c != 0:
-    q, c, d = divmod( d, c ) + ( c, )
-    uc, vc, ud, vd = ud - q*uc, vd - q*vc, uc, vc
-
-  # At this point, d is the GCD, and ud*a+vd*m = d.
-  # If d == 1, this means that ud is a inverse.
-
-  assert d == 1
-  if ud > 0: return ud
-  else: return ud + m
-
 def orderlen(order):
     return (1+len("%x"%order))/2 # bytes
 
@@ -174,9 +152,9 @@ class JPAKE:
                 }
 
     def checkZKP(self, generator, gx, zkp):
-        # confirm the sender's proof that they know 'x' such that
-        # generator^x==gx , contained in 'zkp'
-        g = self.params.g; p = self.params.p; q = self.params.q
+        # confirm the sender's proof (contained in 'zkp') that they know 'x'
+        # such that generator^x==gx
+        p = self.params.p
         gr = int(zkp["gr"], 16)
         b = int(zkp["b"], 16)
         if zkp["id"] == self.signerid:
@@ -219,7 +197,6 @@ class JPAKE:
 
     def two(self, m1):
         g = self.params.g; p = self.params.p
-        #gx3s, gx4s, zkp_x3, zkp_x4 = m1.split(":", 3)
         gx3 = self.gx3 = int(m1["gx1"], 16) % p
         gx4 = self.gx4 = int(m1["gx2"], 16) % p
         if gx4 == 1:
