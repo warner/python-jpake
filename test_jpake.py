@@ -3,18 +3,13 @@ import unittest
 from jpake import JPAKE, DuplicateSignerID, params_80, params_112, params_128
 from binascii import hexlify
 from hashlib import sha256
-from pprint import pprint
 
 class Basic(unittest.TestCase):
     def test_success(self):
         pw = "password"
         jA,jB = JPAKE(pw, signerid="Alice"), JPAKE(pw, signerid="Bob")
         m1A,m1B = jA.one(), jB.one()
-        pprint(("m1A", m1A))
-        pprint(("m1B", m1B))
         m2A,m2B = jA.two(m1B), jB.two(m1A)
-        pprint(("m2A", m2A))
-        pprint(("m2B", m2B))
         kA,kB = jA.three(m2B), jB.three(m2A)
         self.failUnlessEqual(hexlify(kA), hexlify(kB))
         self.failUnlessEqual(len(kA), len(sha256().digest()))

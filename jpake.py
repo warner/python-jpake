@@ -116,19 +116,6 @@ def randrange(order, entropy):
                        " is very wrong or you got realllly unlucky. Order was"
                        " %x" % order)
 
-def read_all_lines():
-    values = {} # prefix: list of de-hexed values
-    for line in open("out.txt","r").readlines():
-        if " = " in line:
-            e = line.index("=")
-            prefix = line[:e].rstrip()
-            value = int(line[e+1:].strip(), 16)
-            if prefix not in values:
-                values[prefix] = []
-            values[prefix].append(value)
-    return values
-VALUES = read_all_lines()
-
 class JPAKE:
     def __init__(self, password, params=params_80, signerid=None, entropy=None):
         if entropy is None:
@@ -151,16 +138,6 @@ class JPAKE:
             self.s = 1 + (string_to_number(sha256(password).digest()) % (q-1))
         self.x1 = randrange(q, self.entropy) # [0,q)
         self.x2 = 1+randrange(q-1, self.entropy) # [1,q)
-        # TESTING
-        if signerid=="Alice":
-            self.x1 = VALUES["x1"].pop(0)
-            self.x2 = VALUES["x2"].pop(0)
-        elif signerid=="Bob":
-            self.x1 = VALUES["x3"].pop(0)
-            self.x2 = VALUES["x4"].pop(0)
-        else:
-            raise RuntimeError
-        self.s = VALUES["secret"][0]
         
 
     def createZKP(self, generator, exponent):
@@ -169,7 +146,6 @@ class JPAKE:
         # the recipient of this proof (A=generator, P=self.params.p).
         p = self.params.p; q = self.params.q
         r = randrange(q, self.entropy) # [0,q)
-        r = VALUES["    (r)"].pop(0) # testing
         gr = pow(generator, r, p)
         gx = pow(generator, exponent, p) # the verifier knows this already
         if False:
@@ -195,11 +171,6 @@ class JPAKE:
         return {"gr": "%x"%gr, # gr and b are the important values
                 "b": "%x"%b,
                 "id": self.signerid,
-                "Htmp": "%x"%h,
-                "Rtmp": "%x"%r, # delete all of these, only for debugging
-                "Gtmp": "%x"%generator,
-                "Xtmp": "%x"%exponent,
-                "GXtmp": "%x"%gx,
                 }
 
     def checkZKP(self, generator, gx, zkp):
@@ -228,7 +199,6 @@ class JPAKE:
                          number_to_string(len(zkp["id"]), 2),
                          zkp["id"]])
             h = string_to_number(sha1(s).digest())
-        print "my h: %x, b=%x, gen=%x" % (h, b, generator)
         gb = pow(generator, b, p)
         y = pow(gx, h, p)
         if gr != (gb*y)%p:
@@ -280,6 +250,5 @@ class JPAKE:
         t3 = pow(t3, q-self.s, p)
         t4 = (B * t3) % p
         K = pow(t4, self.x2, p)
-        print "K: %x" % K
         k = sha256(number_to_string(K, self.params.orderlen)).digest()
         return k
