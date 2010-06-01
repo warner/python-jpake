@@ -2,12 +2,19 @@
 import os, binascii
 from hashlib import sha256
 import simplejson
-class DuplicateSignerID(Exception):
+
+
+class JPAKEError(Exception):
+    pass
+
+class DuplicateSignerID(JPAKEError):
     """Their signer ID must be different than ours, to keep them from merely
     echoing back our own signature."""
 
-class BadZeroKnowledgeProof(Exception):
-    """The failed to prove knowledge of their own secret."""
+class BadZeroKnowledgeProof(JPAKEError):
+    """They failed to prove knowledge of their own secret."""
+class GX4MustNotBeOne(JPAKEError):
+    pass
 
 
 # inverse_mod from python-ecdsa
@@ -36,9 +43,15 @@ def orderlen(order):
     return (1+len("%x"%order))/2 # bytes
 
 def number_to_string(num, orderlen):
-    fmt_str = "%0" + str(2*orderlen) + "x"
-    string = binascii.unhexlify(fmt_str % num)
-    assert len(string) == orderlen, (len(string), orderlen)
+    if orderlen is None:
+        s = "%x" % num
+        if len(s)%2:
+            s = "0"+s
+        string = binascii.unhexlify(s)
+    else:
+        fmt_str = "%0" + str(2*orderlen) + "x"
+        string = binascii.unhexlify(fmt_str % num)
+        assert len(string) == orderlen, (len(string), orderlen)
     return string
 
 def string_to_number(string):
@@ -103,6 +116,18 @@ def randrange(order, entropy):
                        " is very wrong or you got realllly unlucky. Order was"
                        " %x" % order)
 
+def read_all_lines():
+    values = {} # prefix: list of de-hexed values
+    for line in open("out.txt","r").readlines():
+        if " = " in line:
+            e = line.index("=")
+            prefix = line[:e].rstrip()
+            value = int(line[e+1:].strip(), 16)
+            if prefix not in values:
+                values[prefix] = []
+            values[prefix].append(value)
+    return values
+VALUES = read_all_lines()
 
 class JPAKE:
     def __init__(self, password, params=params_80, signerid=None, entropy=None):
@@ -126,31 +151,87 @@ class JPAKE:
             self.s = 1 + (string_to_number(sha256(password).digest()) % (q-1))
         self.x1 = randrange(q, self.entropy) # [0,q)
         self.x2 = 1+randrange(q-1, self.entropy) # [1,q)
+        # TESTING
+        if signerid=="Alice":
+            self.x1 = VALUES["x1"].pop(0)
+            self.x2 = VALUES["x2"].pop(0)
+        elif signerid=="Bob":
+            self.x1 = VALUES["x3"].pop(0)
+            self.x2 = VALUES["x4"].pop(0)
+        else:
+            raise RuntimeError
+        self.s = VALUES["secret"][0]
+        
 
     def createZKP(self, generator, exponent):
+        # This returns a proof that I know a secret value 'exponent' that
+        # satisfies the equation A^exponent=B mod P, where A,B,P are known to
+        # the recipient of this proof (A=generator, P=self.params.p).
         p = self.params.p; q = self.params.q
         r = randrange(q, self.entropy) # [0,q)
+        r = VALUES["    (r)"].pop(0) # testing
         gr = pow(generator, r, p)
-        gx = pow(generator, exponent, p)
-        s = "%x:%x:%x:%s" % (generator, gr, gx, self.signerid)
-        h = string_to_number(sha256(s).digest())
+        gx = pow(generator, exponent, p) # the verifier knows this already
+        if False:
+            # my way
+            s = "%x:%x:%x:%s" % (generator, gr, gx, self.signerid)
+            h = string_to_number(sha256(s).digest())
+        else:
+            # Ben's C implementation hashes the pieces this way:
+            from hashlib import sha1
+            def hashbn(bn):
+                bns = number_to_string(bn, None)
+                assert len(bns) <= 0xffff
+                return number_to_string(len(bns), 2) + bns
+            assert len(self.signerid) <= 0xffff
+            g2 = generator
+            g2 = self.params.g # Ben's does this, I think it's a bug
+            s = "".join([hashbn(g2), hashbn(gr), hashbn(gx),
+                         number_to_string(len(self.signerid), 2),
+                         self.signerid])
+            h = string_to_number(sha1(s).digest())
+
         b = (r - exponent*h) % q
-        return {"gr": "%x"%gr,
+        return {"gr": "%x"%gr, # gr and b are the important values
                 "b": "%x"%b,
                 "id": self.signerid,
+                "Htmp": "%x"%h,
+                "Rtmp": "%x"%r, # delete all of these, only for debugging
+                "Gtmp": "%x"%generator,
+                "Xtmp": "%x"%exponent,
+                "GXtmp": "%x"%gx,
                 }
 
-    def checkZKP(self, gx, zkp):
+    def checkZKP(self, generator, gx, zkp):
+        # confirm the sender's proof that they know 'x' such that
+        # generator^x==gx , contained in 'zkp'
         g = self.params.g; p = self.params.p; q = self.params.q
         gr = int(zkp["gr"], 16)
         b = int(zkp["b"], 16)
         if zkp["id"] == self.signerid:
             raise DuplicateSignerID
-        s = "%x:%x:%x:%s" % (g, gr, gx, zkp["id"])
-        h = string_to_number(sha256(s).digest())
-        gb = pow(g, b, p)
+        if False:
+            # my way
+            s = "%x:%x:%x:%s" % (generator, gr, gx, zkp["id"])
+            h = string_to_number(sha256(s).digest())
+        else:
+            # Ben's C implementation hashes the pieces this way:
+            from hashlib import sha1
+            def hashbn(bn):
+                bns = number_to_string(bn, None)
+                assert len(bns) <= 0xffff
+                return number_to_string(len(bns), 2) + bns
+            assert len(zkp["id"]) <= 0xffff
+            g2 = generator
+            g2 = self.params.g # his does this, I think it's a bug
+            s = "".join([hashbn(g2), hashbn(gr), hashbn(gx),
+                         number_to_string(len(zkp["id"]), 2),
+                         zkp["id"]])
+            h = string_to_number(sha1(s).digest())
+        print "my h: %x, b=%x, gen=%x" % (h, b, generator)
+        gb = pow(generator, b, p)
         y = pow(gx, h, p)
-        if gr != (gb*y)%q:
+        if gr != (gb*y)%p:
             raise BadZeroKnowledgeProof
 
     def one(self):
@@ -169,10 +250,13 @@ class JPAKE:
     def two(self, m1):
         g = self.params.g; p = self.params.p
         #gx3s, gx4s, zkp_x3, zkp_x4 = m1.split(":", 3)
-        gx3 = self.gx3 = int(m1["gx1"], 16)
-        gx4 = self.gx4 = int(m1["gx2"], 16)
-        self.checkZKP(gx3, m1["zkp_x1"])
-        self.checkZKP(gx4, m1["zkp_x2"])
+        gx3 = self.gx3 = int(m1["gx1"], 16) % p
+        gx4 = self.gx4 = int(m1["gx2"], 16) % p
+        if gx4 == 1:
+            raise GX4MustNotBeOne
+            
+        self.checkZKP(g, gx3, m1["zkp_x1"])
+        self.checkZKP(g, gx4, m1["zkp_x2"])
         # now compute A = g^((x1+x3+x4)*x2*s), i.e. (gx1*gx3*gx4)^(x2*s)
         gx1 = pow(g, self.x1, p)
         t1 = (gx1*gx3*gx4) % p
@@ -185,16 +269,17 @@ class JPAKE:
                 }
 
     def three(self, m2):
-        p = self.params.p
-        Bs, zkp_B = m2.split(":", 1)
+        p = self.params.p; q = self.params.q
         B = int(m2["A"], 16)
-        t1B = (self.gx1*self.gx2*self.gx3) % p
-        self.checkZKP(t1B, m2["zkp_A"])
-        t3 = pow(self.gx2, self.gx4, p)
-        t3 = pow(t3, self.s, p)
-        t3 = inverse_mod(t3, p)
+        generator = (self.gx1*self.gx2*self.gx3) % p
+        self.checkZKP(generator, B, m2["zkp_A"])
+        # we want (B/(g^(x2*x4*s)))^x2, using the g^x4 that we got from them
+        # (stored in gx4). We start with gx4^x2, then (gx4^x2)^-s, then
+        # (B*(gx4^x2)^-s), then finally apply the ^x2.
+        t3 = pow(self.gx4, self.x2, p)
+        t3 = pow(t3, q-self.s, p)
         t4 = (B * t3) % p
         K = pow(t4, self.x2, p)
-        print K
-        k = sha256(number_to_string(K, self.params.order)).digest()
+        print "K: %x" % K
+        k = sha256(number_to_string(K, self.params.orderlen)).digest()
         return k
