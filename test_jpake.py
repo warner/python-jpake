@@ -139,6 +139,20 @@ class Serialize(unittest.TestCase):
         self.failUnlessEqual(hexlify(kA), hexlify(kB))
         self.failUnlessEqual(len(kA), len(sha256().digest()))
 
+class Packed(unittest.TestCase):
+    def test_pack(self):
+        pw = "password"
+        jA,jB = JPAKE(pw, signerid="Alice"), JPAKE(pw, signerid="Bob")
+        m1A,m1B = jA.one(), jB.one()
+        m1Ap = jA.pack_one(m1A)
+        #print "m1:", len(simplejson.dumps(m1A)), len(m1Ap)
+        m2A,m2B = jA.two(m1B), jB.two(jB.unpack_one(m1Ap))
+        m2Ap = jA.pack_two(m2A)
+        #print "m2:", len(simplejson.dumps(m2A)), len(m2Ap)
+        kA,kB = jA.three(m2B), jB.three(jB.unpack_two(m2Ap))
+        self.failUnlessEqual(hexlify(kA), hexlify(kB))
+        self.failUnlessEqual(len(kA), len(sha256().digest()))
+
 if __name__ == '__main__':
     unittest.main()
 

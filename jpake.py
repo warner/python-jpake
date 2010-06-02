@@ -165,7 +165,8 @@ class JPAKE:
     messages, the JPAKE instance has pack_msg1(), unpack_msg1(), pack_msg2(),
     unpack_msg2() methods to encode/decode these strings into smaller
     bytestrings. The encoding scheme is slightly different for each params=
-    value.
+    value. For params_80, a JSON encoding of one()/two() is 1218/606 bytes,
+    while the output of pack_one()/pack_two() is 773/389 byes.
 
       send(j.pack_one(j.one()))
       msg2 = j.two(j.unpack_one(receive()))
@@ -276,6 +277,40 @@ class JPAKE:
                 "zkp_x2": zkp_x2,
                 }
 
+    def pack_one(self, data):
+        orderlen = self.params.orderlen
+        def n2s(hexint):
+            return number_to_string(int(hexint,16), orderlen)
+        assert data["zkp_x1"]["id"] == data["zkp_x2"]["id"]
+        packed = "".join([n2s(data["gx1"]),
+                          n2s(data["gx2"]),
+                          n2s(data["zkp_x1"]["gr"]),
+                          n2s(data["zkp_x1"]["b"]),
+                          n2s(data["zkp_x2"]["gr"]),
+                          n2s(data["zkp_x2"]["b"]),
+                          # the rest of the string is signerid
+                          data["zkp_x1"]["id"],
+                          ])
+        return packed
+
+    def unpack_one(self, packed):
+        orderlen = self.params.orderlen
+        def generate_substrings(packed):
+            for i in range(6):
+                yield binascii.hexlify(packed[i*orderlen:(i+1)*orderlen])
+            yield packed[6*orderlen:] # signerid
+        g = generate_substrings(packed)
+        data = { "gx1": g.next(),
+                 "gx2": g.next(),
+                 "zkp_x1": {"gr": g.next(), "b": g.next() },
+                 "zkp_x2": {"gr": g.next(), "b": g.next() },
+                 }
+        signerid = g.next()
+        assert isinstance(signerid, str)
+        data["zkp_x1"]["id"] = signerid
+        data["zkp_x2"]["id"] = signerid
+        return data
+
     def two(self, m1):
         g = self.params.g; p = self.params.p
         gx3 = self.gx3 = int(m1["gx1"], 16) % p
@@ -294,6 +329,33 @@ class JPAKE:
         return {"A": "%x"%A,
                 "zkp_A": zkp_A,
                 }
+
+    def pack_two(self, data):
+        orderlen = self.params.orderlen
+        def n2s(hexint):
+            return number_to_string(int(hexint,16), orderlen)
+        packed = "".join([n2s(data["A"]),
+                          n2s(data["zkp_A"]["gr"]),
+                          n2s(data["zkp_A"]["b"]),
+                          # the rest of the string is signerid
+                          data["zkp_A"]["id"],
+                          ])
+        return packed
+
+    def unpack_two(self, packed):
+        orderlen = self.params.orderlen
+        def generate_substrings(packed):
+            for i in range(3):
+                yield binascii.hexlify(packed[i*orderlen:(i+1)*orderlen])
+            yield packed[3*orderlen:] # signerid
+        g = generate_substrings(packed)
+        data = { "A": g.next(),
+                 "zkp_A": {"gr": g.next(), "b": g.next() },
+                 }
+        signerid = g.next()
+        assert isinstance(signerid, str)
+        data["zkp_A"]["id"] = signerid
+        return data
 
     def three(self, m2):
         p = self.params.p; q = self.params.q
