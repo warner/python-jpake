@@ -1,0 +1,141 @@
+
+= Pure-Python J-PAKE =
+
+This is an easy-to-use implementation of the J-PAKE password-authenticated
+key exchange algorithm[1], implemented purely in Python, released under the
+MIT license. This allows two parties, who share a weak password, to safely
+derive a strong shared secret (and therefore build an encrypted+authenticated
+channel). A passive attacker who eavesdrops on the connection learns no
+information about the password or the generated secret. An active attacker
+(man-in-the-middle) gets exactly one guess at the password, and unless they
+get it right, they learn no information about the password or the generated
+secret. Each execution of the protocol enables one guess. The use of a weak
+password is made safer by the rate-limiting of guesses: no off-line attack is
+possible.
+
+The protocol requires the exchange of two pairs of messages, first one, then
+the other, resulting in a total of two round trips before the session key is
+established.
+
+All messages are JSON-serializable. For the default security level (using a
+1024-bit modulus, roughly equivalent to an 80-bit symmetric key), the first
+message is about 1218 bytes long, and the second message is about 606 bytes
+long. An alternative binary encoding is available, which reduces the message
+sizes by about 35%.
+
+== Dependencies ==
+
+This package is pure-python: no C code or compiled extension modules are
+used. It requires the 'simplejson' module for data serialization.
+
+== Speed ==
+
+To run the built-in speed tests, just run the bench_jpake.py script.
+
+J-PAKE consists of three phases, separated by message exchanges. On my 2008
+mac laptop, the default params_80 security level takes about 200ms to
+complete all three phases. The params_112 level takes about 890ms, and
+params_128 takes about 2.0s . The breakdown by phase is about 30% one(), 45%
+two(), and 25% three().
+
+This library uses only Python. A version which used C speedups for the large
+modular multiplication operations would probably be an order of magnitude
+faster.
+
+== History ==
+
+The Hao+Ryan paper was published in April 2008. That same year, the authors
+provided a Java implementation, and Ben Laurie wrote a version in C (using
+OpenSSL for the math). Brian Warner wrote this Python version in May 2010,
+using Laurie's C version as a reference (it uses the same serialization
+format, except for the final key hash, and is not too far from being
+interoperable with that version).
+
+== Testing ==
+
+To run the built-in test suite from a source directory, do:
+
+ PYTHONPATH=. python jpake/test/test_jpake.py
+
+The tests take approximately 12 seconds on my laptop.
+
+== Security ==
+
+This library does not protect against timing attacks. Do not allow attackers
+to measure how long it takes you to create or respond to a message. This
+library depends upon a strong source of random numbers. Do not use it on a
+system where os.urandom() is weak.
+
+== Usage ==
+
+Alice and Bob both their JPAKE instances with the same (weak) password. They
+will exchange messages to (hopefully) derive a shared secret key "K". The
+protocol is symmetric: for each operation that Alice does, Bob will do the
+same. For each message that Alice sends, Bob will send a corresponding
+message.
+
+The only asymmetry in the protocol is in the "signer ID". To prevent a
+reflection attack (where the MitM echoes a message back to the sender), the
+two sides of a negotiation process must have different signerID values. If
+your protocol has natural "client" and "server" sides, then you can use
+signerid="client" and signerid="server", or simply "1" and "2". If not, the
+default behavior (generating a medium-size random string) is probably
+adequate.
+
+You start by creating a JPAKE instance, using the password. You can override
+certain options to increase the security level (at the expense of processing
+speed) or set the signerID. Then you ask the instance for the first outbound
+message by calling msg1out=j.one(), and send it to your partner. Once you
+receive the corresponding inbound message, you pass it into the instance and
+get back the second outbound message, with msg2out=j.two(msg1in) . When you
+receive the second inbound message, you complete the protocol and extract the
+(shared) key bytestring with key=j.three(msg2in). For example:
+
+  from jpake import JPAKE
+  j = JPAKE("my password")
+  msg1out = j.one()
+  send(msg1out)
+  msg1in = receive()
+  msg2out = j.two(msg1in)
+  send(msg2out)
+  msg2in = receive()
+  key = j.three(msg2in)
+
+If both sides used the same password, and there is no man-in-the-middle, then
+both sides will obtain the same key. If not, the two sides will get different
+keys, so using "key" for data encryption will result in garbled data. To
+safely test for identical keys before use, you can perform a third message
+exchange at the end of the protocol, before actually using the key (be
+careful to not simply send the shared key over the wire: this would allow a
+MitM to learn the key that they could otherwise not guess). Unlike the rest
+of the JPAKE protocol, this key-confirmation step is different on each side.
+
+  # Alice does this:
+  ...
+  key = j.three(msg2in)
+  hhkey = sha256(sha256(key).digest()).digest()
+  send(hhkey)
+
+  # and Bob does this:
+  ...
+  key = j.three(msg2in)
+  their_hhkey = receive()
+  my_hhkey = sha256(sha256(key).digest()).digest()
+  assery my_hhkey == their_hhkey
+  hkey = sha256(key).digest()
+  send(hkey)
+
+  # and then Alice does this:
+  their_hkey = receive()
+  my_hkey = sha256(key).digest()
+  assert my_hkey == their_hkey
+
+The shared "key" can be used as an AES data-encryption key, and/or an HMAC
+key to provide data integrity. It can also be used to derive other session
+keys as necessary.
+
+--footnotes--
+
+[1]: http://www.lightbluetouchpaper.org/2008/05/29/j-pake
+  http://en.wikipedia.org/wiki/J-PAKE
+  http://grouper.ieee.org/groups/1363/Research/contributions/hao-ryan-2008.pdf
