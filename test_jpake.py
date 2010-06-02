@@ -3,6 +3,7 @@ import unittest
 from jpake import JPAKE, DuplicateSignerID, params_80, params_112, params_128
 from binascii import hexlify
 from hashlib import sha256
+import simplejson
 
 class Basic(unittest.TestCase):
     def test_success(self):
@@ -120,6 +121,23 @@ class OtherEntropy(unittest.TestCase):
         self.failUnlessEqual(m2B1, m2B2)
         self.failUnlessEqual(kA1, kA2)
         self.failUnlessEqual(kB1, kB2)
+
+class Serialize(unittest.TestCase):
+    def replace(self, orig):
+        data = simplejson.dumps(orig.to_json())
+        return JPAKE.from_json(simplejson.loads(data))
+
+    def test_serialize(self):
+        pw = "password"
+        jA,jB = JPAKE(pw, signerid="Alice"), JPAKE(pw, signerid="Bob")
+        jA = self.replace(jA)
+        m1A,m1B = jA.one(), jB.one()
+        jA = self.replace(jA)
+        m2A,m2B = jA.two(m1B), jB.two(m1A)
+        jA = self.replace(jA)
+        kA,kB = jA.three(m2B), jB.three(m2A)
+        self.failUnlessEqual(hexlify(kA), hexlify(kB))
+        self.failUnlessEqual(len(kA), len(sha256().digest()))
 
 if __name__ == '__main__':
     unittest.main()

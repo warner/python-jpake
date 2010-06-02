@@ -141,7 +141,22 @@ class JPAKE:
     and then reconstruct the instance with j=JPAKE.from_json(data). The
     instance data is sensitive: protect it better than you would the original
     password. An attacker who learns the instance state from both sides will
-    be able to reconstruct the shared key.
+    be able to reconstruct the shared key. These functions return a
+    dictionary: you are responsible for invoking e.g. simplejson.dumps() to
+    serialize it into a string that can be written to disk. For params_80,
+    the serialized JSON is typically about 750 bytes after construction, 1300
+    bytes after one(), and 1800 bytes after two().
+
+     j = JPAKE(password)
+     send(j.one())
+     open('save.json','w').write(simplejson.dumps(j.to_json()))
+     ...
+     j = JPAKE.from_json(simplejson.loads(open('save.json').read()))
+     send(j.two(receive()))
+     open('save.json','w').write(simplejson.dumps(j.to_json()))
+     ...
+     j = JPAKE.from_json(simplejson.loads(open('save.json').read()))
+     key = j.three(receive())
 
     The messages returned by one() and two() are small dictionaries, safe to
     serialize as JSON objects, and will survive being deserialized in a
@@ -178,8 +193,6 @@ class JPAKE:
             # we must convert the password (a variable-length string) into a
             # number from 1 to q-1 (inclusive).
             self.s = 1 + (string_to_number(sha256(password).digest()) % (q-1))
-        self.x1 = randrange(q, self.entropy) # [0,q)
-        self.x2 = 1+randrange(q-1, self.entropy) # [1,q)
         
 
     def createZKP(self, generator, exponent, gx):
@@ -249,7 +262,9 @@ class JPAKE:
             raise BadZeroKnowledgeProof
 
     def one(self):
-        g = self.params.g; p = self.params.p
+        g = self.params.g; p = self.params.p; q = self.params.q
+        self.x1 = randrange(q, self.entropy) # [0,q)
+        self.x2 = 1+randrange(q-1, self.entropy) # [1,q)
         gx1 = self.gx1 = pow(g, self.x1, p)
         gx2 = self.gx2 = pow(g, self.x2, p)
         zkp_x1 = self.createZKP(g, self.x1, gx1)
@@ -294,3 +309,34 @@ class JPAKE:
         K = pow(t4, self.x2, p)
         k = sha256(number_to_string(K, self.params.orderlen)).digest()
         return k
+
+    def getattr_hex(self, name):
+        if hasattr(self, name):
+            return "%x" % getattr(self, name)
+        return None
+
+    def to_json(self):
+        return {"signerid": self.signerid,
+                "params.p": "%x" % self.params.p,
+                "params.g": "%x" % self.params.g,
+                "params.q": "%x" % self.params.q,
+                "s": self.s,
+                "x1": self.getattr_hex("x1"),
+                "x2": self.getattr_hex("x2"),
+                "gx1": self.getattr_hex("gx1"),
+                "gx2": self.getattr_hex("gx2"),
+                "gx3": self.getattr_hex("gx3"),
+                "gx4": self.getattr_hex("gx4"),
+                }
+
+    @classmethod
+    def from_json(klass, data, entropy=None):
+        p = Params(int(data["params.p"], 16),
+                   int(data["params.q"], 16),
+                   int(data["params.g"], 16))
+        self = klass(data["s"], params=p, signerid=data["signerid"],
+                     entropy=entropy)
+        for name in ["x1", "x2", "gx1", "gx2", "gx3", "gx4"]:
+            if data[name]:
+                setattr(self, name, int(data[name], 16))
+        return self
