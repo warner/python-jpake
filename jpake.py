@@ -95,6 +95,70 @@ def randrange(order, entropy):
                        " %x" % order)
 
 class JPAKE:
+    """This class manages one half of a J-PAKE key negotiation.
+
+    Create an instance with JPAKE(password), where 'password' is either a
+    number (0 < number < params.q-1) or a bytestring. You can also pass an
+    optional params= value (one of [params_80, params_112, params_128], for
+    increasing levels of security and CPU usage), and a signerid= value
+    (which must be an ASCII string). Any two JPAKE communicating instances
+    must use different signerid= values (to prevent simply reflecting a
+    message back to its sender): the default achieves this by using a random
+    string, but you could use 'client' and 'server' if you only ever use this
+    class in that way.
+
+    Once constructed, you will need to call one(), two(), and three() in
+    order, passing the output of one over the wire, where it forms the input
+    to the next:
+
+        my_msg1 = j.one()
+        send(my_msg1)
+        their_msg1 = receive()
+        my_msg2 = j.two(their_msg1)
+        send(my_msg2)
+        their_msg2 = receive()
+        key = j.three(their_msg2)
+
+    The secret 'key' that comes out will be a bytestring (the output of a
+    hash function). If both sides used the same password, both sides will
+    wind up with the same key, otherwise they will have different keys. You
+    will probably want to confirm this equivalence before relying upon it
+    (but don't reveal the key to the other side in doing so, in case you
+    aren't talking to the right party and your keys are really different).
+    Note that this introduces an asymmetry to the protocol. For example:
+
+        A: hhkey = sha256(sha256(Akey).digest()).digest()
+        A: send(hhkey)
+        B: hhkey = receive()
+        B: assert sha256(sha256(Bkey).digest()).digest() == hhkey
+        B: hkey = sha256(Bkey).digest()
+        B: send(hkey)
+        A: hkey = receive()
+        A: assert sha256(Akey).digest() == hkey
+
+    If you can't keep the JPAKE instance alive for the whole negotiation, you
+    can persist the important data from an instance with data=j.to_json(),
+    and then reconstruct the instance with j=JPAKE.from_json(data). The
+    instance data is sensitive: protect it better than you would the original
+    password. An attacker who learns the instance state from both sides will
+    be able to reconstruct the shared key.
+
+    The messages returned by one() and two() are small dictionaries, safe to
+    serialize as JSON objects, and will survive being deserialized in a
+    javascript environment (i.e. the large numbers are encoded as hex
+    strings, since JS does not have bigints). If you wish for smaller
+    messages, the JPAKE instance has pack_msg1(), unpack_msg1(), pack_msg2(),
+    unpack_msg2() methods to encode/decode these strings into smaller
+    bytestrings. The encoding scheme is slightly different for each params=
+    value.
+
+      send(j.pack_one(j.one()))
+      msg2 = j.two(j.unpack_one(receive()))
+      send(j.pack_two(msg2))
+      key = j.three(j.unpack_two(receive()))
+
+    """
+
     def __init__(self, password, params=params_80, signerid=None, entropy=None):
         if entropy is None:
             entropy = os.urandom
