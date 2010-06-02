@@ -1,7 +1,6 @@
-#! /usr/bin/python
 
 import timeit, sys
-from jpake import JPAKE, params_80, params_112, params_128
+from jpake import JPAKE, params_80
 
 class Harness:
     def setup(self, params=params_80):
