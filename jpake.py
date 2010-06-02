@@ -182,14 +182,16 @@ class JPAKE:
         self.x2 = 1+randrange(q-1, self.entropy) # [1,q)
         
 
-    def createZKP(self, generator, exponent):
+    def createZKP(self, generator, exponent, gx):
         # This returns a proof that I know a secret value 'exponent' that
         # satisfies the equation A^exponent=B mod P, where A,B,P are known to
-        # the recipient of this proof (A=generator, P=self.params.p).
+        # the recipient of this proof (A=generator, P=self.params.p). It
+        # happens that everywhere createZKP() is called, we already have
+        # A^exponent, so we pass it in to save some computation time.
         p = self.params.p; q = self.params.q
         r = randrange(q, self.entropy) # [0,q)
         gr = pow(generator, r, p)
-        gx = pow(generator, exponent, p) # the verifier knows this already
+        #gx = pow(generator, exponent, p) # the verifier knows this already
         if False:
             # my way
             s = "%x:%x:%x:%s" % (generator, gr, gx, self.signerid)
@@ -250,8 +252,8 @@ class JPAKE:
         g = self.params.g; p = self.params.p
         gx1 = self.gx1 = pow(g, self.x1, p)
         gx2 = self.gx2 = pow(g, self.x2, p)
-        zkp_x1 = self.createZKP(g, self.x1)
-        zkp_x2 = self.createZKP(g, self.x2)
+        zkp_x1 = self.createZKP(g, self.x1, gx1)
+        zkp_x2 = self.createZKP(g, self.x2, gx2)
         # now serialize all four. Use simple jsonable dict for now
         return {"gx1": "%x"%gx1,
                 "gx2": "%x"%gx2,
@@ -273,7 +275,7 @@ class JPAKE:
         t2 = (self.x2*self.s) % p
         A = pow(t1, t2, p)
         # also create a ZKP for x2*s
-        zkp_A = self.createZKP(t1, t2)
+        zkp_A = self.createZKP(t1, t2, A)
         return {"A": "%x"%A,
                 "zkp_A": zkp_A,
                 }
