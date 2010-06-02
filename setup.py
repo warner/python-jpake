@@ -6,7 +6,7 @@ from distutils.core import setup
 #  python jpake/test/test_jpake.py
 
 setup(name="jpake",
-      version="0.5",
+      version="0.0a0",
       description="J-PAKE password-authenticated key exchange (pure python)",
       author="Brian Warner",
       author_email="warner-pyjpake@lothar.com",
