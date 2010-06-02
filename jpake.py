@@ -205,8 +205,7 @@ class JPAKE:
         self.checkZKP(g, gx3, m1["zkp_x1"])
         self.checkZKP(g, gx4, m1["zkp_x2"])
         # now compute A = g^((x1+x3+x4)*x2*s), i.e. (gx1*gx3*gx4)^(x2*s)
-        gx1 = pow(g, self.x1, p)
-        t1 = (gx1*gx3*gx4) % p
+        t1 = (((self.gx1*gx3) % p) * gx4) % p   # (gx1*gx3*gx4)%p
         t2 = (self.x2*self.s) % p
         A = pow(t1, t2, p)
         # also create a ZKP for x2*s

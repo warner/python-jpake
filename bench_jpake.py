@@ -12,8 +12,6 @@ class Harness:
         self.m1A,self.m1B = self.jA.one(), self.jB.one()
         self.m2A,self.m2B = self.jA.two(self.m1B), self.jB.two(self.m1A)
         #kA,kB = self.jA.three(m2B), self.jB.three(m2A)
-        #self.failUnlessEqual(hexlify(kA), hexlify(kB))
-        #self.failUnlessEqual(len(kA), len(sha256().digest()))
     def construct(self):
         JPAKE(self.pw, signerid="Alice", params=self.params)
     def one(self):
@@ -26,8 +24,15 @@ class Harness:
 h = Harness()
 
 if __name__ == "__main__":
-    for params in ["params_80", "params_112", "params_128"]:
-        for name in ["construct", "one", "two", "three"]:
+    if len(sys.argv) == 1:
+        all_params = ["params_80", "params_112", "params_128"]
+        all_names = ["construct", "one", "two", "three"]
+    else:
+        params,name = sys.argv[1].split(".")
+        all_params = [params]
+        all_names = [name]
+    for params in all_params:
+        for name in all_names:
             print "%s %s:" % (params, name),
             timeit.main(["--setup",
                          ("import bench_jpake; "
