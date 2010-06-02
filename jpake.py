@@ -283,7 +283,7 @@ class JPAKE:
     def three(self, m2):
         p = self.params.p; q = self.params.q
         B = int(m2["A"], 16)
-        generator = (self.gx1*self.gx2*self.gx3) % p
+        generator = (((self.gx1*self.gx2)%p)*self.gx3) % p
         self.checkZKP(generator, B, m2["zkp_A"])
         # we want (B/(g^(x2*x4*s)))^x2, using the g^x4 that we got from them
         # (stored in gx4). We start with gx4^x2, then (gx4^x2)^-s, then
