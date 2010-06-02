@@ -34,7 +34,7 @@ class Parameters(unittest.TestCase):
         self.failUnlessEqual(hexlify(kA), hexlify(kB))
         self.failUnlessEqual(len(kA), len(sha256().digest()))
 
-        jA,jB = JPAKE(pw), JPAKE("passwerd")
+        jA,jB = JPAKE(pw, params=params), JPAKE("passwerd", params=params)
         m1A,m1B = jA.one(), jB.one()
         m2A,m2B = jA.two(m1B), jB.two(m1A)
         kA,kB = jA.three(m2B), jB.three(m2A)
@@ -45,6 +45,15 @@ class Parameters(unittest.TestCase):
     def test_params(self):
         for params in [params_80, params_112, params_128]:
             self.do_tests(params)
+
+    def test_default_is_80(self):
+        pw = "password"
+        jA,jB = JPAKE(pw, params=params_80), JPAKE(pw)
+        m1A,m1B = jA.one(), jB.one()
+        m2A,m2B = jA.two(m1B), jB.two(m1A)
+        kA,kB = jA.three(m2B), jB.three(m2A)
+        self.failUnlessEqual(hexlify(kA), hexlify(kB))
+        self.failUnlessEqual(len(kA), len(sha256().digest()))
 
 class SignerID(unittest.TestCase):
     def test_signerid(self):
