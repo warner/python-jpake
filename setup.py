@@ -13,7 +13,7 @@ class Test(Command):
     def finalize_options(self):
         pass
     def run(self):
-        for t in ["jpake/test/test_jpake.py",
+        for t in ["jpake/test_jpake.py",
                   ]:
             rc = self.do_test(t)
             if rc != 0:
