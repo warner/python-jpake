@@ -361,8 +361,14 @@ class JPAKE:
         K = pow(t4, self.x2, p)
         # the paper suggests this can be reduced to two pow() calls, but I'm
         # not seeing it.
-        k = sha256(number_to_string(K, self.params.orderlen)).digest()
-        return k
+        self.K = K # stash it, so that folks trying to be compatible with
+                   # some OpenSSL-based implementation (which returns the raw
+                   # K from JPAKE_get_shared_key()) can use alternative
+                   # hashing schemes to get from K to the final key. It's
+                   # important to hash K before using it, to not expose the
+                   # actual number to anybody.
+        key = sha256(number_to_string(K, self.params.orderlen)).digest()
+        return key
 
     def getattr_hex(self, name):
         if hasattr(self, name):
