@@ -1,6 +1,6 @@
 
 import os, binascii
-from hashlib import sha256
+from hashlib import sha256, sha1
 import simplejson
 
 
@@ -210,27 +210,18 @@ class JPAKE:
         r = randrange(q, self.entropy) # [0,q)
         gr = pow(generator, r, p)
         #gx = pow(generator, exponent, p) # the verifier knows this already
-        if False:
-            # my way
-            s = "%x:%x:%x:%s" % (generator, gr, gx, self.signerid)
-            h = string_to_number(sha256(s).digest())
-        else:
-            # Ben's C implementation hashes the pieces this way:
-            from hashlib import sha1
-            def hashbn(bn):
-                bns = number_to_string(bn, None)
-                assert len(bns) <= 0xffff
-                return number_to_string(len(bns), 2) + bns
-            assert len(self.signerid) <= 0xffff
-            g2 = generator
-            g2 = self.params.g # Ben's does this, I think it's a bug
-            # update: the version that went into OpenSSL does it right, so
-            # change this and build compatibility tests to make sure I get it
-            # right too. http://git.infradead.org/openssl.git/blob/HEAD:/crypto/jpake/jpake.c#l342
-            s = "".join([hashbn(g2), hashbn(gr), hashbn(gx),
-                         number_to_string(len(self.signerid), 2),
-                         self.signerid])
-            h = string_to_number(sha1(s).digest())
+        # Ben's C implementation hashes the pieces this way:
+        def hashbn(bn):
+            bns = number_to_string(bn, None)
+            assert len(bns) <= 0xffff
+            return number_to_string(len(bns), 2) + bns
+        assert len(self.signerid) <= 0xffff
+        # we match the way OpenSSL does the hash:
+        # http://git.infradead.org/openssl.git/blob/HEAD:/crypto/jpake/jpake.c#l342
+        s = "".join([hashbn(generator), hashbn(gr), hashbn(gx),
+                     number_to_string(len(self.signerid), 2),
+                     self.signerid])
+        h = string_to_number(sha1(s).digest())
 
         b = (r - exponent*h) % q
         return {"gr": "%x"%gr, # gr and b are the important values
@@ -246,24 +237,16 @@ class JPAKE:
         b = int(zkp["b"], 16)
         if zkp["id"] == self.signerid:
             raise DuplicateSignerID
-        if False:
-            # my way
-            s = "%x:%x:%x:%s" % (generator, gr, gx, zkp["id"])
-            h = string_to_number(sha256(s).digest())
-        else:
-            # Ben's C implementation hashes the pieces this way:
-            from hashlib import sha1
-            def hashbn(bn):
-                bns = number_to_string(bn, None)
-                assert len(bns) <= 0xffff
-                return number_to_string(len(bns), 2) + bns
-            assert len(zkp["id"]) <= 0xffff
-            g2 = generator
-            g2 = self.params.g # his does this, I think it's a bug
-            s = "".join([hashbn(g2), hashbn(gr), hashbn(gx),
-                         number_to_string(len(zkp["id"]), 2),
-                         zkp["id"]])
-            h = string_to_number(sha1(s).digest())
+        # Ben's C implementation hashes the pieces this way:
+        def hashbn(bn):
+            bns = number_to_string(bn, None)
+            assert len(bns) <= 0xffff
+            return number_to_string(len(bns), 2) + bns
+        assert len(zkp["id"]) <= 0xffff
+        s = "".join([hashbn(generator), hashbn(gr), hashbn(gx),
+                     number_to_string(len(zkp["id"]), 2),
+                     zkp["id"]])
+        h = string_to_number(sha1(s).digest())
         gb = pow(generator, b, p)
         y = pow(gx, h, p)
         if gr != (gb*y)%p:
