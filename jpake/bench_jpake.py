@@ -39,17 +39,16 @@ if __name__ == "__main__":
                          "bench_jpake.h.%s()" % name,
                          ])
             
-
-# 41:warner@Cookies% python bench_jpake.py 
-# params_80 construct: 10000 loops, best of 3: 101 usec per loop
-# params_80 one: 10 loops, best of 3: 58.3 msec per loop
-# params_80 two: 10 loops, best of 3: 85.1 msec per loop
-# params_80 three: 10 loops, best of 3: 48.7 msec per loop
-# params_112 construct: 10000 loops, best of 3: 108 usec per loop
-# params_112 one: 10 loops, best of 3: 279 msec per loop
-# params_112 two: 10 loops, best of 3: 387 msec per loop
-# params_112 three: 10 loops, best of 3: 221 msec per loop
-# params_128 construct: 10000 loops, best of 3: 84 usec per loop
-# params_128 one: 10 loops, best of 3: 641 msec per loop
-# params_128 two: 10 loops, best of 3: 875 msec per loop
-# params_128 three: 10 loops, best of 3: 497 msec per loop
+# % python jpake/bench_jpake.py 
+# params_80 construct: 100000 loops, best of 3: 14.9 usec per loop
+# params_80 one: 10 loops, best of 3: 38.9 msec per loop
+# params_80 two: 10 loops, best of 3: 66.3 msec per loop
+# params_80 three: 10 loops, best of 3: 48.1 msec per loop
+# params_112 construct: 100000 loops, best of 3: 14.6 usec per loop
+# params_112 one: 10 loops, best of 3: 184 msec per loop
+# params_112 two: 10 loops, best of 3: 295 msec per loop
+# params_112 three: 10 loops, best of 3: 219 msec per loop
+# params_128 construct: 100000 loops, best of 3: 13.5 usec per loop
+# params_128 one: 10 loops, best of 3: 424 msec per loop
+# params_128 two: 10 loops, best of 3: 659 msec per loop
+# params_128 three: 10 loops, best of 3: 495 msec per loop
