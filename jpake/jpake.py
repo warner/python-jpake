@@ -224,6 +224,9 @@ class JPAKE:
             assert len(self.signerid) <= 0xffff
             g2 = generator
             g2 = self.params.g # Ben's does this, I think it's a bug
+            # update: the version that went into OpenSSL does it right, so
+            # change this and build compatibility tests to make sure I get it
+            # right too. http://git.infradead.org/openssl.git/blob/HEAD:/crypto/jpake/jpake.c#l342
             s = "".join([hashbn(g2), hashbn(gr), hashbn(gx),
                          number_to_string(len(self.signerid), 2),
                          self.signerid])
