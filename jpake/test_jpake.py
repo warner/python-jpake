@@ -3,7 +3,10 @@ import unittest
 from jpake import JPAKE, DuplicateSignerID, params_80, params_112, params_128
 from binascii import hexlify
 from hashlib import sha256
-import simplejson
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 class Basic(unittest.TestCase):
     def test_success(self):
@@ -124,8 +127,8 @@ class OtherEntropy(unittest.TestCase):
 
 class Serialize(unittest.TestCase):
     def replace(self, orig):
-        data = simplejson.dumps(orig.to_json())
-        return JPAKE.from_json(simplejson.loads(data))
+        data = json.dumps(orig.to_json())
+        return JPAKE.from_json(json.loads(data))
 
     def test_serialize(self):
         pw = "password"
@@ -145,10 +148,10 @@ class Packed(unittest.TestCase):
         jA,jB = JPAKE(pw, signerid="Alice"), JPAKE(pw, signerid="Bob")
         m1A,m1B = jA.one(), jB.one()
         m1Ap = jA.pack_one(m1A)
-        #print "m1:", len(simplejson.dumps(m1A)), len(m1Ap)
+        #print "m1:", len(json.dumps(m1A)), len(m1Ap)
         m2A,m2B = jA.two(m1B), jB.two(jB.unpack_one(m1Ap))
         m2Ap = jA.pack_two(m2A)
-        #print "m2:", len(simplejson.dumps(m2A)), len(m2Ap)
+        #print "m2:", len(json.dumps(m2A)), len(m2Ap)
         kA,kB = jA.three(m2B), jB.three(jB.unpack_two(m2Ap))
         self.failUnlessEqual(hexlify(kA), hexlify(kB))
         self.failUnlessEqual(len(kA), len(sha256().digest()))
