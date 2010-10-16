@@ -19,6 +19,19 @@ class BadZeroKnowledgeProof(JPAKEError):
 class GX4MustNotBeOne(JPAKEError):
     pass
 
+class SignerIDMustBeASCII(JPAKEError):
+    """All signer IDs must be ASCII strings."""
+
+def ASCII(s):
+    # s might be a unicode object (output of json.loads) that really contains
+    # ASCII, or it might be a bytestring (most other places). Since this will
+    # be JSONified later, require that it be in the ASCII subset of
+    # bytestrings.
+    try:
+        return s.encode("ascii")
+    except UnicodeDecodeError:
+        raise SignerIDMustBeASCII
+
 
 def orderlen(order):
     return (1+len("%x"%order))/2 # bytes
@@ -188,8 +201,7 @@ class JPAKE:
         self.entropy = entropy
         if signerid is None:
             signerid = binascii.hexlify(self.entropy(16))
-        self.signerid = signerid
-        assert json.dumps(self.signerid) # must be printable
+        self.signerid = ASCII(signerid)
         self.params = params
         q = params.q
         if isinstance(password, (int,long)):
@@ -298,7 +310,7 @@ class JPAKE:
                  "zkp_x1": {"gr": g.next(), "b": g.next() },
                  "zkp_x2": {"gr": g.next(), "b": g.next() },
                  }
-        signerid = g.next()
+        signerid = ASCII(g.next())
         assert isinstance(signerid, str)
         data["zkp_x1"]["id"] = signerid
         data["zkp_x2"]["id"] = signerid
@@ -345,7 +357,7 @@ class JPAKE:
         data = { "A": g.next(),
                  "zkp_A": {"gr": g.next(), "b": g.next() },
                  }
-        signerid = g.next()
+        signerid = ASCII(g.next())
         assert isinstance(signerid, str)
         data["zkp_A"]["id"] = signerid
         return data

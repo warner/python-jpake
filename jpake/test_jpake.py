@@ -1,6 +1,7 @@
 
 import unittest
-from jpake import JPAKE, DuplicateSignerID, params_80, params_112, params_128
+from jpake import JPAKE, params_80, params_112, params_128, \
+     DuplicateSignerID, SignerIDMustBeASCII
 from binascii import hexlify
 from hashlib import sha256
 try:
@@ -82,6 +83,26 @@ class SignerID(unittest.TestCase):
         self.failUnlessRaises(DuplicateSignerID, jA.two, m1B)
         self.failUnlessRaises(DuplicateSignerID, jB.two, m1A)
 
+    def test_ascii(self):
+        self.failUnlessRaises(SignerIDMustBeASCII,
+                              JPAKE, "pw", signerid="not-ascii\xff")
+        jA,jB = JPAKE("pw", signerid="Alice"), JPAKE("pw", signerid="Bob")
+        m1A = jA.one()
+        m1Ap = jA.pack_one(m1A)
+        # now doctor m1Ap to contain non-ascii, to exercise the check in
+        # unpack_one. We happen to know that the signerid is stored at the
+        # end of the packed structure
+        assert m1Ap[-5:] == "Alice"
+        m1Ap_bad = m1Ap[:-5] + "Alic\xff"
+        self.failUnlessRaises(SignerIDMustBeASCII,
+                              jA.unpack_one, m1Ap_bad)
+        # same for message two
+        m2A = jA.two(jB.one())
+        m2Ap = jA.pack_two(m2A)
+        assert m2Ap[-5:] == "Alice"
+        m2Ap_bad = m2Ap[:-5] + "Alic\xff"
+        self.failUnlessRaises(SignerIDMustBeASCII,
+                              jA.unpack_two, m2Ap_bad)
 
 class PRNG:
     # this returns a callable which, when invoked with an integer N, will

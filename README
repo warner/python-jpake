@@ -80,7 +80,7 @@ two sides of a negotiation process must have different signerID values. If
 your protocol has natural "client" and "server" sides, then you can use
 signerid="client" and signerid="server", or simply "1" and "2". If not, the
 default behavior (generating a medium-size random string) is probably
-adequate.
+adequate. The signerid must be ASCII.
 
 You start by creating a JPAKE instance, using the password. You can override
 certain options to increase the security level (at the expense of processing
