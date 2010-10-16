@@ -6,8 +6,11 @@ from binascii import hexlify
 from hashlib import sha256
 try:
     import json
+    json.__version__ # this is really here to hush pyflakes, which gets
+                     # confused by this import-and-alternate pattern
 except ImportError:
     import simplejson as json
+    json.__version__
 
 class Basic(unittest.TestCase):
     def test_success(self):
